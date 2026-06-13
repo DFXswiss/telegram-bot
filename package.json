@@ -1,0 +1,37 @@
+{
+  "name": "telegram-bot",
+  "version": "0.1.0",
+  "description": "Logs every message of a Telegram group to PostgreSQL and sends replies queued in an outbox table. No AI — deterministic scripts only.",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "dev": "ts-node src/main.ts",
+    "migrate": "node dist/db/migrate.js",
+    "migrate:dev": "ts-node src/db/migrate.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "type-check": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint \"src/**/*.ts\""
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0",
+    "node-telegram-bot-api": "^0.67.0",
+    "pg": "^8.12.0",
+    "pino": "^9.0.0",
+    "pino-pretty": "^11.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/node-telegram-bot-api": "^0.64.14",
+    "@types/pg": "^8.11.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.4.0"
+  }
+}

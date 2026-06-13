@@ -1,0 +1,42 @@
+# Local development only. Builds the image from source and runs it against a
+# throwaway Postgres. NOT the deploy config — see deploy/ for the server-repo
+# compose files. Provide TELEGRAM_BOT_TOKEN via a local .env (see .env.example).
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: telegram_bot
+      POSTGRES_DB: telegram_bot
+      POSTGRES_PASSWORD: ${PGPASSWORD:-devpassword}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U telegram_bot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  telegram-bot:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DEPLOYMENT_ENV: dev
+      LOG_LEVEL: debug
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: telegram_bot
+      PGDATABASE: telegram_bot
+      PGPASSWORD: ${PGPASSWORD:-devpassword}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:

@@ -38,6 +38,12 @@ const schema = z.object({
   RUN_INGESTOR: boolFromEnv.default('true'),
   RUN_EXECUTOR: boolFromEnv.default('true'),
 
+  // Allowlist behaviour for unknown channels. When true, a channel the bot is
+  // newly added to is auto-registered as a DISABLED (pending) row for operator
+  // review; when false, unknown channels are ignored entirely (no row created).
+  // Either way only channels with enabled = true are logged and acted upon.
+  AUTO_REGISTER_CHANNELS: boolFromEnv.default('true'),
+
   // Executor loop (drains the outbox action queue)
   OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(3000),
   OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().default(10),

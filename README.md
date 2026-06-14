@@ -124,6 +124,39 @@ With privacy mode on (the Telegram default) the bot sees only commands,
 After disabling, **remove and re-add** the bot to the group for the change to
 take effect.
 
+## Channels (multi-channel, allowlist, per-channel config)
+
+One bot serves an arbitrary number of channels/groups. The `channels` table
+(`migrations/003`) is the registry and the **allowlist**: only channels with
+`enabled = true` are logged and acted upon.
+
+Onboarding a channel:
+
+1. Add the bot to the group/channel (as admin if you want moderation actions).
+2. With `AUTO_REGISTER_CHANNELS=true` (default) the bot inserts a **disabled**
+   (pending) row the first time it sees a message there — nothing is logged yet.
+3. Review and activate it:
+   ```sql
+   -- see what's waiting
+   SELECT chat_id, title, chat_type, enabled, last_seen_at FROM channels ORDER BY last_seen_at DESC;
+
+   -- activate one channel, turn on moderation, set per-channel config
+   UPDATE channels
+      SET enabled = true,
+          moderation_enabled = true,
+          language = 'de',
+          settings = '{"spam_threshold": 0.8}'::jsonb,
+          updated_at = now()
+    WHERE chat_id = -1001234567890;
+   ```
+
+Per-channel columns: `enabled` (allowlist gate), `moderation_enabled`
+(allow delete/ban/kick), `language`, and a free-form `settings` JSONB for
+anything the decision tiers need (thresholds, rules, …). Set
+`AUTO_REGISTER_CHANNELS=false` to ignore unknown channels entirely instead of
+registering them as pending. A channel with logged messages cannot be deleted
+(FK `RESTRICT`) — disable it instead.
+
 ## Configuration
 
 Secrets live in `.env` (see `.env.example`); everything else is set in the
@@ -138,6 +171,7 @@ deploy compose `environment:` block.
 | `LOG_LEVEL` | config | `info` | pino level |
 | `HEALTH_PORT` | config | `3000` | `/health` port |
 | `RUN_INGESTOR` / `RUN_EXECUTOR` | config | `true` | toggle roles (split into separate containers if desired) |
+| `AUTO_REGISTER_CHANNELS` | config | `true` | auto-add unknown channels as disabled/pending vs. ignore them |
 | `OUTBOX_POLL_INTERVAL_MS` | config | `3000` | executor idle poll interval |
 | `OUTBOX_BATCH_SIZE` | config | `10` | rows claimed per loop |
 | `OUTBOX_MAX_ATTEMPTS` | config | `5` | retries before a row is parked `failed` |

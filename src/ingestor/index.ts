@@ -1,6 +1,42 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { pool } from '../db/pool';
+import { config } from '../config';
 import { logger } from '../util/logger';
+
+/**
+ * Allowlist gate. Resolves whether the channel is enabled for logging/actions.
+ *
+ * With AUTO_REGISTER_CHANNELS the channel is upserted into the registry (kept
+ * disabled on first sight, title/last_seen refreshed) so an operator can review
+ * and flip `enabled = true`. Without it, unknown channels resolve to disabled
+ * and are never registered. Returns the channel's `enabled` flag.
+ */
+async function resolveChannel(chat: TelegramBot.Chat): Promise<boolean> {
+  if (config.AUTO_REGISTER_CHANNELS) {
+    const res = await pool.query<{ enabled: boolean; existed: boolean }>(
+      `INSERT INTO channels (chat_id, title, chat_type, last_seen_at)
+         VALUES ($1, $2, $3, now())
+       ON CONFLICT (chat_id) DO UPDATE
+         SET title = EXCLUDED.title, chat_type = EXCLUDED.chat_type, last_seen_at = now()
+       RETURNING enabled, (xmax <> 0) AS existed`,
+      [chat.id, chat.title ?? null, chat.type],
+    );
+    const { enabled, existed } = res.rows[0];
+    if (!existed) {
+      logger.info(
+        { chat_id: chat.id, title: chat.title },
+        'new channel registered as pending — set enabled = true to activate',
+      );
+    }
+    return enabled;
+  }
+
+  const res = await pool.query<{ enabled: boolean }>(
+    'SELECT enabled FROM channels WHERE chat_id = $1',
+    [chat.id],
+  );
+  return res.rows.length > 0 && res.rows[0].enabled;
+}
 
 /**
  * Maps a Telegram message to the columns of the `messages` table.
@@ -34,6 +70,16 @@ function buildRow(msg: TelegramBot.Message, edited: boolean) {
 }
 
 async function persist(msg: TelegramBot.Message, edited: boolean): Promise<void> {
+  // Allowlist: register/refresh the channel, but only log enabled ones.
+  const enabled = await resolveChannel(msg.chat);
+  if (!enabled) {
+    logger.debug(
+      { chat_id: msg.chat.id, message_id: msg.message_id },
+      'channel not enabled — message skipped',
+    );
+    return;
+  }
+
   const r = buildRow(msg, edited);
   // New messages: dedupe replays (DO NOTHING). Edits: update in place.
   const onConflict = edited
@@ -87,5 +133,5 @@ export function startIngestor(bot: TelegramBot): void {
 
   bot.on('polling_error', (err) => logger.error({ err }, 'telegram polling error'));
 
-  logger.info('ingestor started — logging all incoming messages');
+  logger.info('ingestor started — logging messages from enabled channels');
 }
